@@ -1,11 +1,14 @@
-# Use an official Python runtime as a parent image
-FROM python:3.8-alpine
+# Use an official Alpine Linux image as a base
+FROM alpine:latest
 
 # Set a custom port as a default (3000 if not specified)
 ENV PORT=3000
 
 # Create a directory to store your files
 WORKDIR /app
+
+# Install Caddy web server
+RUN apk add --no-cache caddy
 
 # Install curl and Git for healthcheck and cloning the repository
 RUN apk update && apk add --no-cache curl git
@@ -16,20 +19,23 @@ ARG UPSTREAM_TAG
 # Add an echo to indicate that the project is being cloned
 RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..."
 
-# Clone the specified RomPatcher.js tag from the GitHub repository into the private "public_path" directory
+# Clone the specified RomPatcher.js tag from the GitHub repository into the private "public" directory
 RUN git clone --depth 1 --branch ${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git /public
 
-# Verification step: Check if /public directory exists
+# Verification step: Check if /app/public directory exists
 RUN if [ ! -d /public ]; then \
-      echo "GitHub repository was not cloned successfully into /public"; \
+      echo "GitHub repository was not cloned successfully into /app/public"; \
       exit 1; \
     fi
 
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
 
-# Start the Python HTTPS server using a self-signed certificate
-CMD sh -c "echo 'Starting server on port $PORT' && python -m http.server --directory /public --bind 0.0.0.0 $PORT --cgi --cert /usr/local/share/ca-certificates/self-signed.crt --key /usr/local/share/ca-certificates/self-signed.key"
+# Copy a Caddyfile with HTTPS configuration
+COPY Caddyfile /app
 
 # Add a healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail https://localhost:$PORT || exit 1
+
+# Start Caddy web server
+CMD ["caddy", "run", "--config", "/app/Caddyfile"]
