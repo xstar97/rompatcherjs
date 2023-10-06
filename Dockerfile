@@ -20,7 +20,7 @@ RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..."
 RUN git clone --depth 1 --branch ${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git /public
 
 # Verification step: Check if a specific file or directory exists in /public
-RUN if [ ! -f /public/some-file-or-directory ]; then \
+RUN if [ ! -f /public ]; then \
       echo "GitHub repository was not cloned successfully into /public"; \
       exit 1; \
     fi
