@@ -1,13 +1,12 @@
 name: Create and publish a Docker image
 
 on:
+  schedule:
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       manual_trigger:
         description: 'Manually trigger the update check'
-        required: false
-      custom_upstream_tag:
-        description: 'Custom UPSTREAM_TAG (optional)'
         required: false
 
 env:
@@ -33,37 +32,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if Docker image tag already exists
-        id: check-tag-exists
+      - name: Check for new tag
+        id: check-tag
         run: |
-          TAG_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://ghcr.io/v2/${{ env.IMAGE_NAME }}/manifests/${{ env.UPSTREAM_TAG }}")
-          echo "::set-output name=tag_exists::${TAG_EXISTS}"
-        continue-on-error: true
+          latest_tag=$(curl -s ${REPO_URL_API} | jq -r '.tag_name')
+          if [[ -n "$latest_tag" ]]; then
+            echo "::set-output name=upstream_tag::$latest_tag"
+          else
+            echo "No new tag found."
+          fi
 
       - name: Set UPSTREAM_TAG
-        if: steps.check-tag-exists.outputs.tag_exists != '200' || github.event.inputs.manual_trigger
+        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger
         run: |
-          if [[ -n "${{ github.event.inputs.custom_upstream_tag }}" ]]; then
-            UPSTREAM_TAG="${{ github.event.inputs.custom_upstream_tag }}"
-          else
-            latest_tag=$(curl -s ${REPO_URL_API} | jq -r '.tag_name')
-            if [[ -n "$latest_tag" ]]; then
-              echo "::set-output name=upstream_tag::$latest_tag"
-              UPSTREAM_TAG="$latest_tag"
-            else
-              echo "No new tag found."
-            fi
-          fi
-          if [[ -n "${{ steps.check-tag-exists.outputs.tag_exists }}" ]]; then
-            echo "UPSTREAM_TAG=${UPSTREAM_TAG}" >> $GITHUB_ENV
+          if [[ -n "${{ steps.check-tag.outputs.upstream_tag }}" ]]; then
+            echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV
           fi
 
-      - name: Build and push Docker image (if tag doesn't exist)
-        if: steps.check-tag-exists.outputs.tag_exists != '200'
+      - name: Build and push Docker image
         uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.UPSTREAM_TAG }}
+          tags: ${{ env.REGISTRY }}/${IMAGE_NAME}:${{ env.UPSTREAM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: UPSTREAM_TAG=${{ env.UPSTREAM_TAG }}  # Pass UPSTREAM_TAG as a build argument
