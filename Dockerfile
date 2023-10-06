@@ -1,5 +1,5 @@
 # Use the static-web-server Dockerfile as a base
-FROM staticwebserver/alpine:latest
+FROM ghcr.io/static-web-server/static-web-server:2.22.1-alpine
 
 # Set a custom port as a default (3000 if not specified)
 ENV PORT=3000
