@@ -31,9 +31,6 @@ RUN if [ ! -d /public ]; then \
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
 
-# Copy your Twisted Python script into the container (assuming you have a script named app.py)
-COPY app.py /app
-
 # Start the Twisted HTTPS server using a shell command to substitute the environment variable
 CMD sh -c "echo 'Starting server on port $PORT' && twistd web --https=$PORT --path=/public"
 
