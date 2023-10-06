@@ -71,5 +71,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }}
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }}, rompatcherjs  # Set the image name to rompatcherjs
           labels: ${{ steps.meta.outputs.labels }}
