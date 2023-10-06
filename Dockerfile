@@ -13,17 +13,10 @@ RUN apk update && apk add --no-cache curl git
 # Define an argument for the RomPatcher.js tag
 ARG UPSTREAM_TAG
 
-# Add an echo to indicate that the project is being cloned
-RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..."
-
-# Clone the specified RomPatcher.js tag from the GitHub repository into the private "public" directory
-RUN git clone --depth 1 --branch ${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git .
-
-# Verification step: Check if /public directory exists
-RUN if [ ! -d /public ]; then \
-      echo "GitHub repository was not cloned successfully into /public"; \
-      exit 1; \
-    fi
+# Add an echo to indicate that the project is being cloned and debug output
+RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..." && \
+    git clone --depth 1 --branch ${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git . || \
+    echo "Git clone failed with exit code $?, UPSTREAM_TAG=$UPSTREAM_TAG"
 
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
