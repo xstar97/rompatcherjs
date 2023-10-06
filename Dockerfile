@@ -25,6 +25,6 @@ RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..." && \
     echo "Git clone failed with exit code $?, UPSTREAM_TAG=$UPSTREAM_TAG"
 
 # Expose the port specified by the PORT environment variable
-EXPOSE $PORT
+EXPOSE $SERVER_PORT
 
 CMD sh -c "static-web-server"
