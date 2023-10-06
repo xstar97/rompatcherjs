@@ -7,6 +7,7 @@ ENV SERVER_ROOT=/public
 ENV SERVER_HEALTH=true
 ENV SERVER_HTTP2_TLS=true
 ENV SERVER_HTTPS_REDIRECT=true
+env SERVER_HTTP2_TLS=true
 
 # Create a directory to store your files
 WORKDIR /public
@@ -28,7 +29,7 @@ EXPOSE $SERVER_PORT
 # Generate a self-signed TLS key and certificate
 RUN openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -keyout /etc/ssl/private/server.key -out /etc/ssl/certs/server.crt -subj "/CN=myapp.local"
 
-ENV SERVER_HTTP2_TLS=/etc/ssl/private/server.key
+ENV SERVER_HTTP2_TLS_KEY=/etc/ssl/private/server.key
 ENV SERVER_HTTP2_TLS_CERT=/etc/ssl/certs/server.crt
 
 # Start the static-web-server with TLS
