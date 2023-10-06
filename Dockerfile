@@ -5,7 +5,6 @@ FROM ghcr.io/static-web-server/static-web-server:2-alpine
 ENV SERVER_PORT=3000
 ENV SERVER_ROOT=/public
 ENV SERVER_HEALTH=true
-ENV SERVER_HTTP2_TLS=true
 ENV SERVER_HTTPS_REDIRECT=true
 env SERVER_HTTP2_TLS=true
 
