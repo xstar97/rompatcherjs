@@ -14,7 +14,7 @@ RUN apk update && apk add --no-cache curl git
 ARG UPSTREAM_TAG
 
 # Clone the specified RomPatcher.js tag from the GitHub repository into the private "public_path" directory
-ENV public_path="/public/$UPSTREAM_TAG"
+ENV public_path="/app/public"
 RUN git clone --depth 1 --branch v${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git ${public_path}
 
 # Expose the port specified by the PORT environment variable
