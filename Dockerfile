@@ -28,8 +28,8 @@ RUN if [ ! -d /public ]; then \
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
 
-# Start the Python HTTP server using a shell command to substitute the environment variable
-CMD sh -c "echo 'Starting server on port $PORT' && python -m http.server $PORT --directory /public"
+# Start the Python HTTPS server using a self-signed certificate
+CMD sh -c "echo 'Starting server on port $PORT' && python -m http.server --directory /public --bind 0.0.0.0 $PORT --cgi --cert /usr/local/share/ca-certificates/self-signed.crt --key /usr/local/share/ca-certificates/self-signed.key"
 
 # Add a healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail http://localhost:$PORT || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail https://localhost:$PORT || exit 1
