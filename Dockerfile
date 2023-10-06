@@ -21,8 +21,4 @@ RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..." && \
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
 
-# Start the static-web-server (Twisted-based) using the specified port and enable HTTPS redirect
-CMD sh -c "static-web-server --port $PORT --health --http2 --https-redirect"
-
-# Add a healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail https://localhost:$PORT/health || exit 1
+CMD sh -c "static-web-server --port $PORT --health true --http2 true --https-redirect true --http2-tls-cert ./my-tls.cert --http2-tls-key ./my-tls.key"
