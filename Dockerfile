@@ -7,11 +7,8 @@ ENV PORT=3000
 # Create a directory to store your files
 WORKDIR /app
 
-# Install Caddy web server
-RUN apk add --no-cache caddy
-
-# Install curl and Git for healthcheck and cloning the repository
-RUN apk update && apk add --no-cache curl git
+# Install curl and Git for healthcheck and cloning the repository and Caddy web server
+RUN apk update && apk add --no-cache curl git caddy
 
 # Define an argument for the RomPatcher.js tag
 ARG UPSTREAM_TAG
