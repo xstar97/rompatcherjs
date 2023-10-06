@@ -7,8 +7,11 @@ ENV PORT=3000
 # Create a directory to store your files
 WORKDIR /app
 
-# Install curl and Git for healthcheck and cloning the repository and Caddy web server
-RUN apk update && apk add --no-cache curl git caddy
+# Install curl and Git for healthcheck and cloning the repository
+RUN apk update && apk add --no-cache curl git
+
+# Install Caddy web server (as a rootless user)
+RUN apk add --no-cache caddy
 
 # Define an argument for the RomPatcher.js tag
 ARG UPSTREAM_TAG
@@ -31,8 +34,16 @@ EXPOSE $PORT
 # Copy a Caddyfile with HTTPS configuration
 COPY Caddyfile /app
 
+# Create a non-root user to run Caddy
+RUN adduser -D -H -u 568 apps
+
+# Make the /app directory writable by the non-root user
+RUN chown -R apps:apps /app
+
 # Add a healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl --fail https://localhost:$PORT || exit 1
 
-# Start Caddy web server
+# Switch to the non-root user and start Caddy web server
+USER apps
+
 CMD ["caddy", "run", "--config", "/app/Caddyfile"]
