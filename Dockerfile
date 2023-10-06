@@ -15,7 +15,7 @@ ARG UPSTREAM_TAG
 
 # Clone the specified RomPatcher.js tag from the GitHub repository into the private "public_path" directory
 ENV public_path="/app/public"
-RUN git clone --depth 1 --branch $UPSTREAM_TAG https://github.com/marcrobledo/RomPatcher.js.git ${public_path}
+RUN git clone --depth 1 --branch ${UPSTREAM_TAG} https://github.com/marcrobledo/RomPatcher.js.git ${public_path}
 
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT

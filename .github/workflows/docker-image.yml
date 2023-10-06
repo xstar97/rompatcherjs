@@ -55,7 +55,7 @@ jobs:
             fi
           fi
           if [[ -n "${{ steps.check-tag-exists.outputs.tag_exists }}" ]]; then
-            echo "UPSTREAM_TAG=${{ steps.check-tag-exists.outputs.tag_exists }}" >> $GITHUB_ENV
+            echo "UPSTREAM_TAG=${UPSTREAM_TAG}" >> $GITHUB_ENV
           fi
 
       - name: Build and push Docker image (if tag doesn't exist)
