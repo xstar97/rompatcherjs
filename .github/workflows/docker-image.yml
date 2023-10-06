@@ -49,15 +49,10 @@ jobs:
             echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV
           fi
 
-      - name: Convert IMAGE_NAME to lowercase
-        run: |
-          export LOWERCASE_IMAGE_NAME=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
-          echo "LOWERCASE_IMAGE_NAME=${LOWERCASE_IMAGE_NAME}" >> $GITHUB_ENV
-
       - name: Build and push Docker image
         uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${LOWERCASE_IMAGE_NAME}:${{ env.UPSTREAM_TAG }}
+          tags: ${{ env.REGISTRY }}/${IMAGE_NAME}:${{ env.UPSTREAM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
