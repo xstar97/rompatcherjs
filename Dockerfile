@@ -2,7 +2,13 @@
 FROM ghcr.io/static-web-server/static-web-server:2.22.1-alpine
 
 # Set a custom port as a default (3000 if not specified)
-ENV PORT=3000
+ENV SERVER_PORT=3000
+ENV SERVER_ROOT=/public
+ENV SERVER_HTTP2_TLS=true
+ENV SERVER_HTTP2_TLS_CERT=null
+ENV SERVER_HTTP2_TLS_KEY=null
+ENV SERVER_HTTPS_REDIRECT=true
+ENV SERVER_HEALTH=true
 
 # Create a directory to store your files
 WORKDIR /public
@@ -21,4 +27,4 @@ RUN echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..." && \
 # Expose the port specified by the PORT environment variable
 EXPOSE $PORT
 
-CMD sh -c "static-web-server --port $PORT --health true --http2 true --https-redirect true --http2-tls-cert ./my-tls.cert --http2-tls-key ./my-tls.key"
+CMD sh -c "static-web-server"
