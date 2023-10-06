@@ -7,7 +7,7 @@ This image also uses [static-web-server](https://static-web-server.net/configura
 version: "3.8"
 
 services:
-  my-service:
+  rompatcherjs:
     image: pull ghcr.io/xstar97/rompatcherjs:v2.7
     ports:
       - "3000:3000"
