@@ -15,8 +15,11 @@ env:
   REPO_URL_API: https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest
 
 jobs:
-  check-for-update:
+  build-and-push-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Install Docker
@@ -71,5 +74,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }}, rompatcherjs  # Set the image name to rompatcherjs
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
