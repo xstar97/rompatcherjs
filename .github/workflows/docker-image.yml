@@ -49,10 +49,21 @@ jobs:
             echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV
           fi
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.UPSTREAM_TAG }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Build and push Docker image with padded tag
+        run: |
+          # Get the UPSTREAM_TAG from environment variables
+          UPSTREAM_TAG=${{ env.UPSTREAM_TAG }}
+
+          # Check if UPSTREAM_TAG has the 'v' prefix, and if not, add it
+          if [[ "$UPSTREAM_TAG" != v* ]]; then
+            UPSTREAM_TAG="v$UPSTREAM_TAG"
+          fi
+
+          # Check if UPSTREAM_TAG has three parts (e.g., "v2.7"), and if not, add ".0"
+          if [[ $UPSTREAM_TAG != v[0-9].[0-9].[0-9] ]]; then
+            UPSTREAM_TAG="$UPSTREAM_TAG.0"
+          fi
+
+          # Build and push the Docker image with the padded tag
+          docker build -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${UPSTREAM_TAG}" .
+          docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${UPSTREAM_TAG}"
