@@ -54,6 +54,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${IMAGE_NAME}:${{ env.UPSTREAM_TAG }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.UPSTREAM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: UPSTREAM_TAG=${{ env.UPSTREAM_TAG }}  # Pass UPSTREAM_TAG as a build argument
+          build-args: UPSTREAM_TAG=${{ env.UPSTREAM_TAG }}
