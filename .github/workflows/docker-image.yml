@@ -2,9 +2,8 @@ name: Create and publish a Docker image
 
 on:
   schedule:
-    # Set the cron schedule to check for updates periodically (e.g., daily)
     - cron: '0 0 * * *'
-  workflow_dispatch: # Optionally, allow manual triggering
+  workflow_dispatch:
     inputs:
       manual_trigger:
         description: 'Manually trigger the update check'
@@ -20,25 +19,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Install Docker
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sh get-docker.sh
+          sudo usermod -aG docker $USER
+        if: github.event.inputs.manual_trigger == 'true'
+
+      - name: Install Docker Buildx
+        run: |
+          docker buildx version
+          docker buildx create --use
+        if: github.event.inputs.manual_trigger == 'true'
+
       - name: Check for new tag
         id: check-tag
         run: |
           latest_tag=$(curl -s ${REPO_URL_API} | grep -oP '(?<=tag\/v)[^"]+')
           if [[ -n "$latest_tag" ]]; then
-            echo "::set-output name=upstream_tag::$latest_tag" # Change to UPSTREAM_TAG
+            echo "::set-output name=upstream_tag::$latest_tag"
           else
             echo "No new tag found."
           fi
 
       - name: Set UPSTREAM_TAG
-        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger # Change to UPSTREAM_TAG
+        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger
         run: |
-          if [[ -n "${{ steps.check-tag.outputs.upstream_tag }}" ]]; then # Change to UPSTREAM_TAG
-            echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV # Change to UPSTREAM_TAG
+          if [[ -n "${{ steps.check-tag.outputs.upstream_tag }}" ]]; then
+            echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV
           fi
 
       - name: Create and publish a Docker image
-        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger # Change to UPSTREAM_TAG
+        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger
         uses: actions/checkout@v2
 
       - name: Log in to the Container registry
@@ -59,5 +71,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }} # Change to UPSTREAM_TAG
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.UPSTREAM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
