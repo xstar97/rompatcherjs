@@ -44,7 +44,7 @@ jobs:
         if: steps.set_version.outputs.is_new == 'true'
         uses: peter-evans/workflow-dispatch@v1
         with:
-          token: ${{ secrets.PAT }}  # PAT with workflow permissions
+          token: ${{ secrets.PAT }}      # PAT with workflow permissions
           repository: ${{ github.repository }}
           workflow: docker-image.yml
           ref: main
