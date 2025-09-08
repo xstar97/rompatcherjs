@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch: # Allow manual trigger
   push:
     tags:
       - "v*.*.*"
@@ -26,3 +27,4 @@ jobs:
           git add README.md
           git commit -m "chore: update README to $VERSION" || echo "No changes"
           git push
+
