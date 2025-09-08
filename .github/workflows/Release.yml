@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # Allow manual trigger
   push:
     tags:
-      - "v*.*.*"
+      - "v*.*.*"  # Only trigger on version tags
 
 jobs:
   update-readme:
@@ -18,7 +18,8 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
       - name: Update README.md
-        run: ./scripts/update-readme.sh $VERSION
+        # Use bash explicitly to avoid permission errors
+        run: bash ./scripts/update-readme.sh $VERSION
 
       - name: Commit README update
         run: |
@@ -27,4 +28,3 @@ jobs:
           git add README.md
           git commit -m "chore: update README to $VERSION" || echo "No changes"
           git push
-
