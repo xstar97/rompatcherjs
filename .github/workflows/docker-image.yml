@@ -1,27 +1,33 @@
-name: Update RomPatcher.js Release
+name: Build and Push RomPatcher.js Docker Image
 
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  REPO_URL_API: https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest
+
 jobs:
-  check-and-build:
+  build-and-push-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Fetch latest upstream release tag
+      # 2. Fetch latest upstream release
       - name: Get latest upstream release
         id: set_version
         run: |
-          # Fetch latest upstream release tag
-          LATEST=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | jq -r '.tag_name')
+          LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
 
-          # Get last built version from VERSION file
           if [ -f "VERSION" ]; then
             LAST=$(cat VERSION)
           else
@@ -29,7 +35,6 @@ jobs:
           fi
           echo "Last built version: $LAST"
 
-          # Compare versions
           if [ "$LATEST" != "$LAST" ]; then
             echo "New version detected: $LATEST"
             echo "VERSION=$LATEST" >> $GITHUB_ENV
@@ -45,7 +50,7 @@ jobs:
         if: env.IS_NEW == 'true'
         uses: docker/login-action@v2
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,36 +62,25 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/xstar97/rompatcherjs:${{ env.VERSION }}
-            ghcr.io/xstar97/rompatcherjs:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: UPSTREAM_TAG=${{ env.VERSION }}
 
-
       # 5. Generate VERSION file and README.md from template
-      - name: Update VERSION file and README
+      - name: Generate VERSION and README
         if: env.IS_NEW == 'true'
         run: |
-          echo "$VERSION" > VERSION
-          sed "s|{{VERSION}}|$VERSION|g" README.template.md > README.md
+          echo "${VERSION}" > VERSION
+          sed "s|{{VERSION}}|${VERSION}|g" README.template.md > README.md
 
-      # 6. Commit README and VERSION changes
-      - name: Commit README and VERSION update
+      # 6. Commit VERSION and README.md
+      - name: Commit and tag
         if: env.IS_NEW == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add README.md VERSION
-          git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
-          git push origin main
-
-      # 7. Tag repo
-      - name: Tag repo
-        if: env.IS_NEW == 'true'
-        run: |
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists. Skipping."
-          else
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag $VERSION
-            git push origin $VERSION
+          git add VERSION README.md
+          git commit -m "chore: update VERSION and README to ${VERSION}" || echo "No changes"
+          git tag -a ${VERSION} -m "Release ${VERSION}" || echo "Tag already exists"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push origin main --tags
