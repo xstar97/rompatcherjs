@@ -28,9 +28,12 @@ jobs:
           LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
 
-          # Get last tag from repo
-          LAST=$(git describe --tags --abbrev=0 || echo "")
-          echo "Last built version (from git tag): $LAST"
+          if [ -f "VERSION" ]; then
+            LAST=$(cat VERSION)
+          else
+            LAST=""
+          fi
+          echo "Last built version: $LAST"
 
           if [ "$LATEST" != "$LAST" ]; then
             echo "New version detected: $LATEST"
@@ -63,20 +66,21 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: UPSTREAM_TAG=${{ env.VERSION }}
 
-      # 5. Generate README.md from template
-      - name: Generate README
+      # 5. Generate VERSION file and README.md from template
+      - name: Generate VERSION and README
         if: env.IS_NEW == 'true'
         run: |
+          echo "${VERSION}" > VERSION
           sed "s|{{VERSION}}|${VERSION}|g" README.template.md > README.md
 
-      # 6. Commit README.md and tag release
+      # 6. Commit VERSION and README.md
       - name: Commit and tag
         if: env.IS_NEW == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add README.md
-          git commit -m "chore: update README to ${VERSION}" || echo "No changes"
+          git add VERSION README.md
+          git commit -m "chore: update VERSION and README to ${VERSION}" || echo "No changes"
           git tag -a ${VERSION} -m "Release ${VERSION}" || echo "Tag already exists"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push origin main --tags
