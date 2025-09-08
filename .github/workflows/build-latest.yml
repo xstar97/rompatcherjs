@@ -1,26 +1,27 @@
-name: Build RomPatcher.js Docker Image
+name: Update RomPatcher.js Release
 
 on:
   workflow_dispatch: # Manual trigger
   schedule:
-    - cron: '0 2 * * *' # daily at 02:00 UTC
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
 
 jobs:
-  build:
+  build-and-update:
     runs-on: ubuntu-latest
+    env:
+      GH_PAT: ${{ secrets.PAT }}
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Fetch latest upstream release
+      # 1. Fetch latest upstream release
       - name: Get latest upstream release
         id: set_version
         run: |
           LATEST=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
 
-          if [ -f VERSION ]; then
+          if [ -f "VERSION" ]; then
             LAST=$(cat VERSION)
           else
             LAST=""
@@ -30,39 +31,54 @@ jobs:
           if [ "$LATEST" != "$LAST" ]; then
             echo "New version detected: $LATEST"
             echo "VERSION=$LATEST" >> $GITHUB_ENV
-            echo "is_new=true" >> $GITHUB_ENV
+            echo "IS_NEW=true" >> $GITHUB_ENV
           else
-            echo "No new version. Exiting..."
-            echo "is_new=false" >> $GITHUB_ENV
+            echo "No new version available."
+            echo "VERSION=$LATEST" >> $GITHUB_ENV
+            echo "IS_NEW=false" >> $GITHUB_ENV
+          fi
 
-      # 3. Exit early if no new version
-      - name: Stop if no new version
-        if: env.is_new == 'false'
-        run: exit 0
+      # 2. Log in to GitHub Container Registry
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. Update VERSION file
-      - name: Update VERSION file
-        run: echo "$VERSION" > VERSION
+      # 3. Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        if: env.IS_NEW == 'true'
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/xstar97/rompatcherjs:$VERSION
+            ghcr.io/xstar97/rompatcherjs:latest
+          build-args: UPSTREAM_TAG=$VERSION
 
-      # 5. Update README.md
+      # 4. Update README.md and VERSION file after image build
       - name: Update README.md
+        if: env.IS_NEW == 'true'
         run: |
-          sed -i "s|pull ghcr.io/xstar97/rompatcherjs:.*|pull ghcr.io/xstar97/rompatcherjs:$VERSION|" README.md
+          chmod +x ./scripts/update-readme.sh
+          ./scripts/update-readme.sh $VERSION
 
-      # 6. Commit VERSION and README update
-      - name: Commit VERSION and README update
+      # 5. Commit README.md and VERSION changes
+      - name: Commit README update
+        if: env.IS_NEW == 'true'
         run: |
           git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add VERSION README.md
-          git commit -m "chore: update to $VERSION" || echo "No changes to commit"
-          git push
+          git config user.email "github-actions@github.com"
+          git add README.md VERSION
+          git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
+          git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
+          git push origin main
 
-      # 7. Tag repo if it doesn't exist
+      # 6. Tag repo
       - name: Tag repo
-        env:
-          VERSION: ${{ env.VERSION }}
-          GH_PAT: ${{ secrets.PAT }}
+        if: env.IS_NEW == 'true'
         run: |
           git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
@@ -72,22 +88,3 @@ jobs:
             git config user.email "github-actions@github.com"
             git tag $VERSION
             git push origin $VERSION
-
-      # 8. Log in to GitHub Container Registry
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 9. Build and push Docker image
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/xstar97/rompatcherjs:$VERSION
-            ghcr.io/xstar97/rompatcherjs:latest
-          build-args: UPSTREAM_TAG=$VERSION
