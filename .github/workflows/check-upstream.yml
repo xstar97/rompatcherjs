@@ -1,9 +1,9 @@
-name: Update RomPatcher.js Release
+name: Check RomPatcher.js Upstream Release
 
 on:
-  workflow_dispatch: # Manual trigger
   schedule:
-    - cron: '0 2 * * *' # Daily at 02:00 UTC
+    - cron: '0 2 * * *' # daily at 02:00 UTC
+  workflow_dispatch:
 
 jobs:
   check-and-update:
@@ -11,11 +11,9 @@ jobs:
     env:
       GH_PAT: ${{ secrets.PAT }}
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Get latest upstream release
       - name: Get latest upstream release
         id: set_version
         run: |
@@ -40,54 +38,32 @@ jobs:
             echo "No new version available."
             echo "VERSION=$LATEST" >> $GITHUB_ENV
             echo "IS_NEW=false" >> $GITHUB_ENV
+          fi
 
-      # 3. Update README.md and VERSION file if new version
       - name: Update README.md
         if: env.IS_NEW == 'true'
         run: |
           chmod +x ./scripts/update-readme.sh
-          ./scripts/update-readme.sh ${{ env.VERSION }}
+          ./scripts/update-readme.sh $VERSION
 
-      # 4. Commit README and VERSION updates
-      - name: Commit README and VERSION updates
+      - name: Commit README and VERSION update
         if: env.IS_NEW == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add README.md VERSION
-          git commit -m "chore: update README and VERSION to ${{ env.VERSION }}" || echo "No changes"
+          git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
           git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           git push origin main
 
-      # 5. Tag the repo if the tag does not exist
       - name: Tag repo
         if: env.IS_NEW == 'true'
         run: |
           git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
-          if git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Tag ${{ env.VERSION }} already exists. Skipping."
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists. Skipping."
           else
             git config user.name "github-actions"
             git config user.email "github-actions@github.com"
-            git tag ${{ env.VERSION }}
-            git push origin ${{ env.VERSION }}
-
-      # 6. Log in to GitHub Container Registry
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 7. Build and push Docker image
-      - name: Build and push Docker image
-        if: env.IS_NEW == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/xstar97/rompatcherjs:${{ env.VERSION }}
-            ghcr.io/xstar97/rompatcherjs:latest
-          build-args: UPSTREAM_TAG=${{ env.VERSION }}
+            git tag $VERSION
+            git push origin $VERSION
