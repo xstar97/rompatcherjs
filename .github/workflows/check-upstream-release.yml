@@ -9,27 +9,24 @@ jobs:
   check-release:
     runs-on: ubuntu-latest
     steps:
-      # Checkout repo to read last built version
+      # 1. Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Fetch latest upstream release
+      # 2. Get latest upstream release
       - name: Get latest upstream release
         id: set_version
         run: |
-          # Get latest release tag from upstream
           LATEST=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
 
-          # Get last built version from VERSION file
-          if [ -f "VERSION" ]; then
+          if [ -f VERSION ]; then
             LAST=$(cat VERSION)
           else
             LAST=""
           fi
           echo "Last built version: $LAST"
 
-          # Compare versions
           if [ "$LATEST" != "$LAST" ]; then
             echo "New version detected: $LATEST"
             echo "version=$LATEST" >> $GITHUB_OUTPUT
@@ -39,14 +36,14 @@ jobs:
             echo "version=$LATEST" >> $GITHUB_OUTPUT
             echo "is_new=false" >> $GITHUB_OUTPUT
 
-      # Trigger Docker build workflow if new version exists
-      - name: Trigger docker-image.yml workflow
+      # 3. Trigger Docker build workflow if new version exists
+      - name: Trigger docker-image workflow
         if: steps.set_version.outputs.is_new == 'true'
-        uses: peter-evans/workflow-dispatch@v1
+        uses: peter-evans/workflow-dispatch@v2
         with:
-          token: ${{ secrets.PAT }}      # PAT with workflow permissions
+          token: ${{ secrets.PAT }}                # must be a PAT with repo & workflow permissions
           repository: ${{ github.repository }}
           workflow: docker-image.yml
           ref: main
-          inputs:
-            version: ${{ steps.set_version.outputs.version }}
+          inputs: |
+            version=${{ steps.set_version.outputs.version }}
