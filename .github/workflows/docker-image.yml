@@ -38,6 +38,7 @@ jobs:
             echo "No new version available."
             echo "VERSION=$LATEST" >> $GITHUB_ENV
             echo "IS_NEW=false" >> $GITHUB_ENV
+          fi
 
       # 3. Update README.md and VERSION if new
       - name: Update README.md
