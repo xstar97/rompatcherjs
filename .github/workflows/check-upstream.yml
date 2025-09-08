@@ -17,10 +17,10 @@ jobs:
       - name: Get latest upstream release
         id: set_version
         run: |
-          # Fetch latest upstream release tag
+          # Fetch latest upstream release tag=
           LATEST=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
-
+          
           # Get last built version from VERSION file
           if [ -f "VERSION" ]; then
             LAST=$(cat VERSION)
@@ -28,7 +28,7 @@ jobs:
             LAST=""
           fi
           echo "Last built version: $LAST"
-
+          
           # Compare versions
           if [ "$LATEST" != "$LAST" ]; then
             echo "New version detected: $LATEST"
@@ -38,6 +38,7 @@ jobs:
             echo "No new version available."
             echo "VERSION=$LATEST" >> $GITHUB_ENV
             echo "IS_NEW=false" >> $GITHUB_ENV
+          fi
 
       - name: Update README.md
         if: env.IS_NEW == 'true'
@@ -70,3 +71,4 @@ jobs:
             git config user.email "github-actions@github.com"
             git tag $VERSION
             git push origin $VERSION
+
