@@ -1,13 +1,9 @@
-name: Create and publish a Docker image
+name: Build on RomPatcher.js Release
 
 on:
+  workflow_dispatch: # Allow manual trigger
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
-    inputs:
-      manual_trigger:
-        description: 'Manually trigger the update check'
-        required: false
+    - cron: '0 3 * * *' # Check daily at 3AM UTC
 
 env:
   REGISTRY: ghcr.io
@@ -15,7 +11,7 @@ env:
   REPO_URL_API: https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest
 
 jobs:
-  build-and-push-image:
+  detect-and-build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,35 +21,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for new tag
-        id: check-tag
+      - name: Get latest upstream tag
+        id: latest
         run: |
           latest_tag=$(curl -s ${REPO_URL_API} | jq -r '.tag_name')
-          if [[ -n "$latest_tag" ]]; then
-            echo "::set-output name=upstream_tag::$latest_tag"
-          else
-            echo "No new tag found."
-          fi
+          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+          echo "Latest upstream tag: $latest_tag"
 
-      - name: Set UPSTREAM_TAG
-        if: steps.check-tag.outputs.upstream_tag != '' || github.event.inputs.manual_trigger
+      - name: Get last built tag
+        id: last
         run: |
-          if [[ -n "${{ steps.check-tag.outputs.upstream_tag }}" ]]; then
-            echo "UPSTREAM_TAG=${{ steps.check-tag.outputs.upstream_tag }}" >> $GITHUB_ENV
+          last_tag=$(git tag --sort=-creatordate | head -n1 || true)
+          echo "last_tag=$last_tag" >> $GITHUB_ENV
+          echo "Last built tag: $last_tag"
+
+      - name: Compare tags
+        id: compare
+        run: |
+          if [ "${{ env.latest_tag }}" != "${{ env.last_tag }}" ]; then
+            echo "new_release=true" >> $GITHUB_ENV
+            echo "New release detected: ${{ env.latest_tag }}"
+          else
+            echo "new_release=false" >> $GITHUB_ENV
+            echo "No new release. Skipping build."
           fi
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@cb8fc7586f9ad9441b20c33e0f6e8b1b58d8b4c6
+        if: env.new_release == 'true'
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.UPSTREAM_TAG }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: UPSTREAM_TAG=${{ env.UPSTREAM_TAG }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.latest_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            UPSTREAM_TAG=${{ env.latest_tag }}
+
+      - name: Tag repo for last build
+        if: env.new_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ env.latest_tag }}
+          git push origin ${{ env.latest_tag }}
