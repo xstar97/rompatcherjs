@@ -14,8 +14,8 @@ jobs:
   detect-and-build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write     # ✅ allows tagging/pushing to repo
+      packages: write     # ✅ allows publishing to GHCR
 
     steps:
       - name: Checkout repository
