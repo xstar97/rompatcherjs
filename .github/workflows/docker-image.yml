@@ -20,7 +20,7 @@ jobs:
     steps:
       # --- Checkout repo ---
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # --- Fetch latest upstream tag ---
       - name: Get latest upstream tag
@@ -34,11 +34,11 @@ jobs:
       - name: Update README.md
         run: bash ./scripts/update-readme.sh $VERSION
 
-      # --- Commit README update ---
+      # --- Commit README update using PAT ---
       - name: Commit README update
         env:
           VERSION: ${{ env.VERSION }}
-          GH_PAT: ${{ secrets.PAT }}  # PAT with repo write permissions
+          GH_PAT: ${{ secrets.PAT }}  # Personal Access Token with repo write
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -46,6 +46,14 @@ jobs:
           git add README.md
           git commit -m "chore: update README to $VERSION" || echo "No changes"
           git push
+
+      # --- Log in to GitHub Container Registry ---
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # --- Build and push Docker image ---
       - name: Build and push Docker image
@@ -58,7 +66,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: UPSTREAM_TAG=${{ env.VERSION }}
 
-      # --- Tag repo for last build if it doesn’t exist ---
+      # --- Tag repo if it doesn't exist ---
       - name: Tag repo
         env:
           VERSION: ${{ env.VERSION }}
