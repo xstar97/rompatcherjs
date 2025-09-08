@@ -6,7 +6,7 @@ on:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
 
 jobs:
-  check-and-update:
+  check-and-build:
     runs-on: ubuntu-latest
     steps:
       # 1. Checkout repository
@@ -40,47 +40,16 @@ jobs:
             echo "IS_NEW=false" >> $GITHUB_ENV
           fi
 
-      # 3. Update README.md and VERSION if new
-      - name: Update README.md
-        if: env.IS_NEW == 'true'
-        run: |
-          chmod +x ./scripts/update-readme.sh
-          ./scripts/update-readme.sh $VERSION
-
-      # 4. Commit changes using GITHUB_TOKEN
-      - name: Commit README and VERSION update
-        if: env.IS_NEW == 'true'
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add README.md VERSION
-          git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
-          # Push using GITHUB_TOKEN
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push origin main
-
-      # 5. Tag repo
-      - name: Tag repo
-        if: env.IS_NEW == 'true'
-        run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists. Skipping."
-          else
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag $VERSION
-            git push origin $VERSION
-
-      # 6. Log in to GitHub Container Registry
+      # 3. Log in to GitHub Container Registry
       - name: Log in to GHCR
+        if: env.IS_NEW == 'true'
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. Build and push Docker image
+      # 4. Build and push Docker image
       - name: Build and push Docker image
         if: env.IS_NEW == 'true'
         uses: docker/build-push-action@v6
@@ -91,3 +60,32 @@ jobs:
             ghcr.io/xstar97/rompatcherjs:$VERSION
             ghcr.io/xstar97/rompatcherjs:latest
           build-args: UPSTREAM_TAG=$VERSION
+
+      # 5. Generate VERSION file and README.md from template
+      - name: Update VERSION file and README
+        if: env.IS_NEW == 'true'
+        run: |
+          echo "$VERSION" > VERSION
+          sed "s|{{VERSION}}|$VERSION|g" README.template.md > README.md
+
+      # 6. Commit README and VERSION changes
+      - name: Commit README and VERSION update
+        if: env.IS_NEW == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add README.md VERSION
+          git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
+          git push origin main
+
+      # 7. Tag repo
+      - name: Tag repo
+        if: env.IS_NEW == 'true'
+        run: |
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists. Skipping."
+          else
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+            git tag $VERSION
+            git push origin $VERSION
