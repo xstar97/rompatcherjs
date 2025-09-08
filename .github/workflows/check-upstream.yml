@@ -11,13 +11,17 @@ jobs:
     env:
       GH_PAT: ${{ secrets.PAT }}
     steps:
+      # 1. Checkout repository using PAT for proper push permissions
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
 
+      # 2. Fetch latest upstream release
       - name: Get latest upstream release
         id: set_version
         run: |
-          # Fetch latest upstream release tag=
+          # Fetch latest upstream release tag
           LATEST=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | jq -r '.tag_name')
           echo "Latest upstream tag: $LATEST"
           
@@ -40,16 +44,16 @@ jobs:
             echo "IS_NEW=false" >> $GITHUB_ENV
           fi
 
+      # 3. Update README.md and VERSION if new release
       - name: Update README.md
         if: env.IS_NEW == 'true'
         run: |
           chmod +x ./scripts/update-readme.sh
           ./scripts/update-readme.sh $VERSION
 
+      # 4. Commit README and VERSION update
       - name: Commit README and VERSION update
         if: env.IS_NEW == 'true'
-        env:
-          GH_PAT: ${{ secrets.PAT }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -58,10 +62,9 @@ jobs:
           git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           git push origin main
 
+      # 5. Tag repo
       - name: Tag repo
         if: env.IS_NEW == 'true'
-        env:
-          GH_PAT: ${{ secrets.PAT }}
         run: |
           git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
@@ -71,4 +74,3 @@ jobs:
             git config user.email "github-actions@github.com"
             git tag $VERSION
             git push origin $VERSION
-
