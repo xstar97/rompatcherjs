@@ -1,10 +1,14 @@
 name: Release
 
 on:
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update README (required if manual)'
+        required: false
   push:
     tags:
-      - "v*.*.*"  # Only trigger on version tags
+      - "v*.*.*"
 
 jobs:
   update-readme:
@@ -13,12 +17,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set version from tag
-        id: vars
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Fetch latest tag
+        id: fetch_tag
+        run: |
+          latest_tag=$(curl -s https://api.github.com/repos/xstar97/rompatcherjs/tags | jq -r '.[0].name')
+          echo "Latest tag: $latest_tag"
+          echo "VERSION=$latest_tag" >> $GITHUB_ENV
 
       - name: Update README.md
-        # Use bash explicitly to avoid permission errors
         run: bash ./scripts/update-readme.sh $VERSION
 
       - name: Commit README update
