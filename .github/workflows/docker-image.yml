@@ -20,7 +20,7 @@ jobs:
     steps:
       # --- Checkout repo ---
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # --- Fetch latest upstream tag ---
       - name: Get latest upstream tag
