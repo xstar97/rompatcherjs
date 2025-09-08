@@ -57,9 +57,10 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/xstar97/rompatcherjs:$VERSION
+            ghcr.io/xstar97/rompatcherjs:${{ env.VERSION }}
             ghcr.io/xstar97/rompatcherjs:latest
-          build-args: UPSTREAM_TAG=$VERSION
+          build-args: UPSTREAM_TAG=${{ env.VERSION }}
+
 
       # 5. Generate VERSION file and README.md from template
       - name: Update VERSION file and README
