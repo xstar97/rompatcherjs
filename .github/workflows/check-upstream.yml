@@ -2,22 +2,21 @@ name: Check RomPatcher.js Upstream Release
 
 on:
   schedule:
-    - cron: '0 2 * * *' # daily at 02:00 UTC
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
   workflow_dispatch:
 
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
-    env:
-      GH_PAT: ${{ secrets.PAT }}
+
     steps:
-      # 1. Checkout repository using PAT for proper push permissions
+      # 1. Checkout repository with token
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}  # Automatically allows pushes
 
-      # 2. Fetch latest upstream release
+      # 2. Fetch latest upstream release tag (KEEP THIS BLOCK EXACTLY)
       - name: Get latest upstream release
         id: set_version
         run: |
@@ -44,14 +43,14 @@ jobs:
             echo "IS_NEW=false" >> $GITHUB_ENV
           fi
 
-      # 3. Update README.md and VERSION if new release
+      # 3. Update README.md if new version
       - name: Update README.md
         if: env.IS_NEW == 'true'
         run: |
           chmod +x ./scripts/update-readme.sh
           ./scripts/update-readme.sh $VERSION
 
-      # 4. Commit README and VERSION update
+      # 4. Commit README and VERSION update if new version
       - name: Commit README and VERSION update
         if: env.IS_NEW == 'true'
         run: |
@@ -59,14 +58,12 @@ jobs:
           git config user.email "github-actions@github.com"
           git add README.md VERSION
           git commit -m "chore: update README and VERSION to $VERSION" || echo "No changes"
-          git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           git push origin main
 
-      # 5. Tag repo
+      # 5. Tag the repo if new version
       - name: Tag repo
         if: env.IS_NEW == 'true'
         run: |
-          git remote set-url origin https://xstar97:${GH_PAT}@github.com/xstar97/rompatcherjs.git
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION already exists. Skipping."
           else
