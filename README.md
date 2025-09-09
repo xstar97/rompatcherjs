@@ -8,7 +8,7 @@ version: "3.8"
 
 services:
   rompatcherjs:
-    image: ghcr.io/xstar97/rompatcherjs:v3.0_v0.0.3
+    image: ghcr.io/xstar97/rompatcherjs:v3.0_v0.0.1
     ports:
       - "3000:3000"
     environment:
