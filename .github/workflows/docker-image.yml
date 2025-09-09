@@ -87,6 +87,14 @@ jobs:
           NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
           NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
 
+          # Only check remote tags if new commits exist
+          while git ls-remote --tags origin "refs/tags/${NEW_TAG}" | grep -q "${NEW_TAG}"; do
+            echo "Tag ${NEW_TAG} already exists. Incrementing patch..."
+            PATCH=$((PATCH+1))
+            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
+            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
+          done
+
           echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
           echo "BUMP=$BUMP" >> $GITHUB_ENV
           echo "Combined version set to: $NEW_TAG"
