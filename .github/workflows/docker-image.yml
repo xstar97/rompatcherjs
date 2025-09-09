@@ -66,47 +66,45 @@ jobs:
         id: combined
         run: |
           UPSTREAM=${UPSTREAM_LATEST}
-
-          # Latest local version
           LAST_LOCAL=$(git tag --list "${UPSTREAM}_v*" | sort -V | tail -n 1)
-          if [ -n "$LAST_LOCAL" ]; then
+
+          if [ -z "$LAST_LOCAL" ]; then
+            # First combined tag for this upstream
+            MAJOR=0
+            MINOR=0
+            PATCH=1
+            BUMP="initial"
+            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
+            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
+          else
             LOCAL_VER=${LAST_LOCAL##*_v}
             COMMITS=$(git log ${LAST_LOCAL}..HEAD --pretty=format:"%s")
-          else
-            LOCAL_VER="0.0.0"
-            COMMITS=$(git log --pretty=format:"%s")
-          fi
 
-          echo "Current local version: $LOCAL_VER"
+            echo "Current local version: $LOCAL_VER"
 
-          # Default bump = patch
-          BUMP="patch"
-
-          if echo "$COMMITS" | grep -qi "BREAKING CHANGE"; then
-            BUMP="major"
-          elif echo "$COMMITS" | grep -qi "^feat"; then
-            BUMP="minor"
-          elif echo "$COMMITS" | grep -qi "^fix"; then
+            # Default bump = patch
             BUMP="patch"
+            if echo "$COMMITS" | grep -qi "BREAKING CHANGE"; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -qi "^feat"; then
+              BUMP="minor"
+            elif echo "$COMMITS" | grep -qi "^fix"; then
+              BUMP="patch"
+            fi
+
+            # Semver bump
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LOCAL_VER"
+            case $BUMP in
+              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH+1)) ;;
+            esac
+
+            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
+            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
           fi
 
-          # Semver bump
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$LOCAL_VER"
-          case $BUMP in
-            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH+1)) ;;
-          esac
-
-          # Start at v0.0.1 if new upstream
-          if [ "$LOCAL_VER" = "0.0.0" ]; then
-            PATCH=1
-          fi
-
-          NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
-          NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
-
-          # Increment patch until unique in remote
+          # Increment patch if tag already exists in remote
           while git ls-remote --tags origin "refs/tags/${NEW_TAG}" | grep -q "${NEW_TAG}"; do
             PATCH=$((PATCH+1))
             NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
