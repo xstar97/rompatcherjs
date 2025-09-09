@@ -30,129 +30,51 @@ jobs:
           echo "UPSTREAM_LATEST=$UPSTREAM_LATEST" >> $GITHUB_ENV
           echo "Latest upstream release: $UPSTREAM_LATEST"
 
-      # 3. Pre-check for updates (upstream or local commits)
-      - name: Check for updates
-        id: precheck
+      # 3. Check if this tag already exists locally
+      - name: Check if tag exists
+        id: tag_check
         run: |
-          UPSTREAM=${UPSTREAM_LATEST}
-
-          # Find latest combined tag for this upstream version
-          LAST_TAG=$(git tag --list "${UPSTREAM}_v*" | sort -V | tail -n 1)
-
-          if [ -z "$LAST_TAG" ]; then
-            echo "No prior combined tag exists. Will build."
-            echo "HAS_UPDATES=true" >> $GITHUB_ENV
+          if git rev-parse "refs/tags/${UPSTREAM_LATEST}" >/dev/null 2>&1; then
+            echo "Tag ${UPSTREAM_LATEST} already exists. Exiting workflow."
+            exit 0
           else
-            LAST_UPSTREAM=${LAST_TAG%%_v*}
-            if [ "$LAST_UPSTREAM" != "$UPSTREAM" ]; then
-              echo "Upstream changed since last tag ($LAST_TAG). Will build."
-              echo "HAS_UPDATES=true" >> $GITHUB_ENV
-            else
-              # Check for new commits since last combined tag
-              NEW_COMMITS=$(git log ${LAST_TAG}..HEAD --oneline)
-              if [ -z "$NEW_COMMITS" ]; then
-                echo "No new commits and upstream unchanged. Skipping build."
-                echo "HAS_UPDATES=false" >> $GITHUB_ENV
-              else
-                echo "New commits detected since last tag ($LAST_TAG). Will build."
-                echo "HAS_UPDATES=true" >> $GITHUB_ENV
-              fi
-            fi
+            echo "Tag ${UPSTREAM_LATEST} does not exist. Proceeding with build."
           fi
 
-      # 4. Determine combined version (only if updates exist)
-      - name: Determine combined version
-        if: env.HAS_UPDATES == 'true'
-        id: combined
-        run: |
-          UPSTREAM=${UPSTREAM_LATEST}
-          LAST_LOCAL=$(git tag --list "${UPSTREAM}_v*" | sort -V | tail -n 1)
-
-          if [ -z "$LAST_LOCAL" ]; then
-            # First combined tag for this upstream
-            MAJOR=0
-            MINOR=0
-            PATCH=1
-            BUMP="initial"
-            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
-            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
-          else
-            LOCAL_VER=${LAST_LOCAL##*_v}
-            COMMITS=$(git log ${LAST_LOCAL}..HEAD --pretty=format:"%s")
-
-            echo "Current local version: $LOCAL_VER"
-
-            # Default bump = patch
-            BUMP="patch"
-            if echo "$COMMITS" | grep -qi "BREAKING CHANGE"; then
-              BUMP="major"
-            elif echo "$COMMITS" | grep -qi "^feat"; then
-              BUMP="minor"
-            elif echo "$COMMITS" | grep -qi "^fix"; then
-              BUMP="patch"
-            fi
-
-            # Semver bump
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$LOCAL_VER"
-            case $BUMP in
-              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
-              minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-              patch) PATCH=$((PATCH+1)) ;;
-            esac
-
-            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
-            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
-          fi
-
-          # Increment patch if tag already exists in remote
-          while git ls-remote --tags origin "refs/tags/${NEW_TAG}" | grep -q "${NEW_TAG}"; do
-            PATCH=$((PATCH+1))
-            NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
-            NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
-          done
-
-          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-          echo "BUMP=$BUMP" >> $GITHUB_ENV
-          echo "Combined version: $NEW_TAG"
-
-      # 5. Log in to GitHub Container Registry
+      # 4. Log in to GitHub Container Registry
       - name: Log in to GHCR
-        if: env.HAS_UPDATES == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 6. Build and push Docker image
+      # 5. Build and push Docker image
       - name: Build and push Docker image
-        if: env.HAS_UPDATES == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           no-cache: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.NEW_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.UPSTREAM_LATEST }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: UPSTREAM_TAG=${{ env.UPSTREAM_LATEST }}
 
-      # 7. Update README, commit, and tag
+      # 6. Update README, commit, and tag
       - name: Commit README and Tag
-        if: env.HAS_UPDATES == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
           # Update README
-          sed "s|{{VERSION}}|${NEW_TAG}|g" README.template.md > README.md
+          sed "s|{{VERSION}}|${UPSTREAM_LATEST}|g" README.template.md > README.md
           git add README.md
 
-          # Commit with bump type
-          git commit -m "chore: update README to ${NEW_TAG} (${BUMP} bump)" || echo "No changes"
+          # Commit and push changes
+          git commit -m "chore: update README to ${UPSTREAM_LATEST}" || echo "No changes"
 
-          # Annotated tag with bump type
-          git tag -a ${NEW_TAG} -m "Release ${NEW_TAG} (${BUMP} bump)" || echo "Tag already exists"
+          # Tag the upstream version
+          git tag -a ${UPSTREAM_LATEST} -m "Release ${UPSTREAM_LATEST}" || echo "Tag already exists"
 
-          # Push commit and tags
           git push origin main --tags
