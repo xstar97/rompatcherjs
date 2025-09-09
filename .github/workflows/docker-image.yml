@@ -1,9 +1,9 @@
 name: Build and Push RomPatcher.js Docker Image
 
 on:
-  workflow_dispatch:        # Allow manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '0 2 * * *'    # Daily at 02:00 UTC
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
 
 env:
   REGISTRY: ghcr.io
@@ -14,30 +14,28 @@ jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     permissions:
-      contents: write      # Required to push README updates
-      packages: write      # Required to push Docker images
+      contents: write
+      packages: write
     outputs:
-      built_version: ${{ steps.set_version.outputs.version }}  # Expose built version to other jobs
+      built_version: ${{ steps.set_version.outputs.version }}  # Always outputs latest upstream tag
 
     steps:
       # ----------------------------------------------------------
-      # 1. Checkout the current repository
+      # 1. Checkout repository
       # ----------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
       # ----------------------------------------------------------
-      # 2. Fetch the latest upstream release tag from GitHub API
+      # 2. Fetch the latest upstream release tag
       # ----------------------------------------------------------
       - name: Get latest upstream release
         id: set_version
         run: |
-          # Query latest release tag from RomPatcher.js repository
           LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
           echo "VERSION=$LATEST" >> $GITHUB_ENV
-          echo "Latest upstream tag: $LATEST"
-          # Also set as step output so it can be used as job output
           echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "Latest upstream tag: $LATEST"
 
       # ----------------------------------------------------------
       # 3. Determine whether to build (skip if image/tag exists)
@@ -48,26 +46,22 @@ jobs:
           SHOULD_BUILD=true
 
           # Check if Docker image already exists in GHCR
-          echo "Checking GHCR image..."
           if curl -s -f -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://ghcr.io/v2/${{ github.repository }}/manifests/${VERSION} > /dev/null; then
             echo "Docker image ${VERSION} exists. Skipping build."
             SHOULD_BUILD=false
           fi
 
-          # Check if git tag already exists in the repository
-          echo "Checking git tag..."
+          # Check if git tag already exists
           if git ls-remote --tags origin refs/tags/${VERSION} | grep -q ${VERSION}; then
             echo "Git tag ${VERSION} exists. Skipping build."
             SHOULD_BUILD=false
           fi
 
-          # Output decision to subsequent steps
           echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
 
       # ----------------------------------------------------------
-      # 4. Log in to GitHub Container Registry
-      # Only run if we need to build
+      # 4. Log in to GHCR (only if building)
       # ----------------------------------------------------------
       - name: Log in to GHCR
         if: steps.check.outputs.should_build == 'true'
@@ -78,24 +72,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------------------------
-      # 5. Build and push Docker image
-      # Only run if we need to build
+      # 5. Build and push Docker image (dynamic tags)
       # ----------------------------------------------------------
       - name: Build and push Docker image
         if: steps.check.outputs.should_build == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: .                 # Build context is the repo root
-          push: true                 # Push images to GHCR
-          no-cache: true             # Force fresh build
+          context: .
+          push: true
+          no-cache: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}   # Tag with version
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest               # Also tag as latest
-          build-args: UPSTREAM_TAG=${{ env.VERSION }}                       # Pass upstream tag to Dockerfile
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: UPSTREAM_TAG=${{ env.VERSION }}
 
       # ----------------------------------------------------------
-      # 6. Update README.md from template
-      # Only run if we need to build
+      # 6. Update README.md from template (only if building)
       # ----------------------------------------------------------
       - name: Update README
         if: steps.check.outputs.should_build == 'true'
@@ -103,8 +95,7 @@ jobs:
           sed "s|{{VERSION}}|${VERSION}|g" README.template.md > README.md
 
       # ----------------------------------------------------------
-      # 7. Commit updated README.md
-      # Only run if we need to build
+      # 7. Commit updated README.md (only if building)
       # ----------------------------------------------------------
       - name: Commit README
         if: steps.check.outputs.should_build == 'true'
@@ -116,8 +107,7 @@ jobs:
           git push origin main
 
       # ----------------------------------------------------------
-      # 8. Summary step for skipped builds
-      # Displays a notice in GitHub Actions UI if nothing was done
+      # 8. Summary step for skipped builds (UI notice)
       # ----------------------------------------------------------
       - name: Build summary
         if: steps.check.outputs.should_build == 'false'
