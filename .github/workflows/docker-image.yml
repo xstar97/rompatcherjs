@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+
     steps:
       # 1. Checkout repository
       - name: Checkout repository
@@ -26,61 +27,107 @@ jobs:
         id: set_version
         run: |
           LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
+          echo "VERSION=$LATEST" >> $GITHUB_ENV
           echo "Latest upstream tag: $LATEST"
 
-          if [ -f "VERSION" ]; then
-            LAST=$(cat VERSION)
-          else
-            LAST=""
-          fi
-          echo "Last built version: $LAST"
+      # 3. Determine combined version with local semver bump
+      - name: Determine combined version
+        id: combined
+        run: |
+          UPSTREAM=${VERSION}
 
-          if [ "$LATEST" != "$LAST" ]; then
-            echo "New version detected: $LATEST"
-            echo "VERSION=$LATEST" >> $GITHUB_ENV
-            echo "IS_NEW=true" >> $GITHUB_ENV
+          # Find latest local tag matching this upstream version
+          LAST_LOCAL=$(git tag --list "${UPSTREAM}_v*" | sort -V | tail -n 1)
+
+          if [ -n "$LAST_LOCAL" ]; then
+            LOCAL_VER=${LAST_LOCAL##*_v}
+            # Get commits since last tag
+            COMMITS=$(git log ${LAST_LOCAL}..HEAD --pretty=format:"%s")
           else
-            echo "No new version available."
-            echo "VERSION=$LATEST" >> $GITHUB_ENV
-            echo "IS_NEW=false" >> $GITHUB_ENV
+            LOCAL_VER="0.0.0"
+            COMMITS=$(git log --pretty=format:"%s")
           fi
 
-      # 3. Log in to GitHub Container Registry
+          # Skip build if no new commits
+          if [ -z "$COMMITS" ]; then
+            echo "No new commits since last local tag. Skipping build."
+            echo "SKIP_BUILD=true" >> $GITHUB_ENV
+            exit 0
+          else
+            echo "SKIP_BUILD=false" >> $GITHUB_ENV
+          fi
+
+          echo "Current local version: $LOCAL_VER"
+
+          # Default bump = patch
+          BUMP="patch"
+
+          # Determine bump type from commits
+          if echo "$COMMITS" | grep -qi "BREAKING CHANGE"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qi "^feat"; then
+            BUMP="minor"
+          elif echo "$COMMITS" | grep -qi "^fix"; then
+            BUMP="patch"
+          fi
+
+          # Semver bump logic
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$LOCAL_VER"
+          case $BUMP in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+
+          # Start at v0.0.1 if new upstream
+          if [ "$LOCAL_VER" = "0.0.0" ]; then
+            PATCH=1
+          fi
+
+          NEW_LOCAL="${MAJOR}.${MINOR}.${PATCH}"
+          NEW_TAG="${UPSTREAM}_v${NEW_LOCAL}"
+
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+          echo "BUMP=$BUMP" >> $GITHUB_ENV
+          echo "Combined version set to: $NEW_TAG"
+
+      # 4. Log in to GitHub Container Registry
       - name: Log in to GHCR
-        if: env.IS_NEW == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. Build and push Docker image
+      # 5. Build and push Docker image (only if new commits)
       - name: Build and push Docker image
-        if: env.IS_NEW == 'true'
+        if: env.SKIP_BUILD != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          no-cache: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.NEW_TAG }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: UPSTREAM_TAG=${{ env.VERSION }}
 
-      # 5. Generate VERSION file and README.md from template
-      - name: Generate VERSION and README
-        if: env.IS_NEW == 'true'
-        run: |
-          echo "${VERSION}" > VERSION
-          sed "s|{{VERSION}}|${VERSION}|g" README.template.md > README.md
-
-      # 6. Commit VERSION and README.md
-      - name: Commit and tag
-        if: env.IS_NEW == 'true'
+      # 6. Update README, commit, and tag (only if new commits)
+      - name: Commit README and Tag
+        if: env.SKIP_BUILD != 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add VERSION README.md
-          git commit -m "chore: update VERSION and README to ${VERSION}" || echo "No changes"
-          git tag -a ${VERSION} -m "Release ${VERSION}" || echo "Tag already exists"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+          # Update README
+          sed "s|{{VERSION}}|${NEW_TAG}|g" README.template.md > README.md
+          git add README.md
+
+          # Commit with bump type
+          git commit -m "chore: update README to ${NEW_TAG} (${BUMP} bump)" || echo "No changes"
+
+          # Annotated tag with bump type
+          git tag -a ${NEW_TAG} -m "Release ${NEW_TAG} (${BUMP} bump)" || echo "Tag already exists"
+
+          # Push commit and tags
           git push origin main --tags
