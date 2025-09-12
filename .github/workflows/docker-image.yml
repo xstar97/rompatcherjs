@@ -16,15 +16,14 @@ jobs:
     permissions:
       contents: write
       packages: write
-    outputs:
-      built_version: ${{ steps.set_version.outputs.version }}  # Always outputs latest upstream tag
-
     steps:
       # ----------------------------------------------------------
-      # 1. Checkout repository
+      # 1. Checkout repository (to check tags & update README)
       # ----------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # needed for tags
 
       # ----------------------------------------------------------
       # 2. Fetch the latest upstream release tag
@@ -33,38 +32,29 @@ jobs:
         id: set_version
         run: |
           LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
-          echo "VERSION=$LATEST" >> $GITHUB_ENV
+          echo "LATEST=$LATEST" >> $GITHUB_ENV
           echo "version=$LATEST" >> $GITHUB_OUTPUT
           echo "Latest upstream tag: $LATEST"
 
       # ----------------------------------------------------------
-      # 3. Determine whether to build (skip if image/tag exists)
+      # 3. Determine if release is NEW compared to repo tags
       # ----------------------------------------------------------
-      - name: Check if Docker image or git tag exists
+      - name: Check if new release
         id: check
         run: |
-          SHOULD_BUILD=true
-
-          # Check if Docker image already exists in GHCR
-          if curl -s -f -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://ghcr.io/v2/${{ github.repository }}/manifests/${VERSION} > /dev/null; then
-            echo "Docker image ${VERSION} exists. Skipping build."
-            SHOULD_BUILD=false
+          if git rev-parse "refs/tags/${LATEST}" >/dev/null 2>&1; then
+            echo "Release ${LATEST} already handled."
+            echo "new_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New release ${LATEST} detected!"
+            echo "new_release=true" >> $GITHUB_OUTPUT
           fi
-
-          # Check if git tag already exists
-          if git ls-remote --tags origin refs/tags/${VERSION} | grep -q ${VERSION}; then
-            echo "Git tag ${VERSION} exists. Skipping build."
-            SHOULD_BUILD=false
-          fi
-
-          echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
 
       # ----------------------------------------------------------
-      # 4. Log in to GHCR (only if building)
+      # 4. Log in to GHCR (only if new release)
       # ----------------------------------------------------------
       - name: Log in to GHCR
-        if: steps.check.outputs.should_build == 'true'
+        if: steps.check.outputs.new_release == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -75,42 +65,43 @@ jobs:
       # 5. Build and push Docker image (dynamic tags)
       # ----------------------------------------------------------
       - name: Build and push Docker image
-        if: steps.check.outputs.should_build == 'true'
+        if: steps.check.outputs.new_release == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           no-cache: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.LATEST }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          build-args: UPSTREAM_TAG=${{ env.VERSION }}
+          build-args: UPSTREAM_TAG=${{ env.LATEST }}
 
       # ----------------------------------------------------------
-      # 6. Update README.md from template (only if building)
+      # 6. Create git tag for this release
       # ----------------------------------------------------------
-      - name: Update README
-        if: steps.check.outputs.should_build == 'true'
-        run: |
-          sed "s|{{VERSION}}|${VERSION}|g" README.template.md > README.md
-
-      # ----------------------------------------------------------
-      # 7. Commit updated README.md (only if building)
-      # ----------------------------------------------------------
-      - name: Commit README
-        if: steps.check.outputs.should_build == 'true'
+      - name: Create Git Tag
+        if: steps.check.outputs.new_release == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+          git tag -a ${LATEST} -m "Release ${LATEST}"
+          git push origin ${LATEST}
+
+      # ----------------------------------------------------------
+      # 7. Update README.md from template
+      # ----------------------------------------------------------
+      - name: Update README
+        if: steps.check.outputs.new_release == 'true'
+        run: |
+          sed "s|{{VERSION}}|${LATEST}|g" README.template.md > README.md
           git add README.md
-          git commit -m "chore: update README to ${VERSION}" || echo "No changes"
+          git commit -m "chore: update README to ${LATEST}" || echo "No changes"
           git push origin main
 
       # ----------------------------------------------------------
-      # 8. Summary step for skipped builds (UI notice)
+      # 8. Summary if no new release
       # ----------------------------------------------------------
-      - name: Build summary
-        if: steps.check.outputs.should_build == 'false'
+      - name: Skipped Summary
+        if: steps.check.outputs.new_release == 'false'
         run: |
-          echo "✅ No new release detected. Workflow skipped building Docker image and updating README."
-          echo "::notice title=Skipped Build::No new RomPatcher.js release detected. Docker image and README update were skipped."
+          echo "::notice title=Skipped Build::No new RomPatcher.js release detected."
