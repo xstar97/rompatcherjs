@@ -1,33 +1,17 @@
-# Use the static-web-server x.x.x-alpine as a base
-FROM ghcr.io/static-web-server/static-web-server:2.38.1-alpine
+# Use the lightweight static website base
+FROM lipanski/docker-static-website:2.6.0@sha256:66a530684a934a9b94f65a90f286cba291a7daf4dd7d55dcc17f217915056cd5
 
 # Set environment variables with sensible defaults
-ENV SERVER_PORT=3000 \
-    SERVER_ROOT=/app/public \
-    SERVER_HEALTH=true
+ENV SERVER_PORT=3000
 
-# Create working directory
-WORKDIR /app
+# Working directory is already /home/static in this base image
+WORKDIR /home/static
 
-# Install curl, git, and openssl for healthcheck & repo cloning
-RUN apk update && apk add --no-cache curl git openssl
+# Copy RomPatcher.js files cloned by the workflow
+COPY ./RomPatcher.js .
 
-# Define an argument for the RomPatcher.js tag (optional override)
-ARG UPSTREAM_TAG
-
-# Clone RomPatcher.js at the specified tag into SERVER_ROOT
-# If UPSTREAM_TAG is not set, automatically fetch the latest release tag from GitHub
-RUN if [ -z "$UPSTREAM_TAG" ]; then \
-        echo "Fetching latest RomPatcher.js release tag..." && \
-        UPSTREAM_TAG=$(curl -s https://api.github.com/repos/marcrobledo/RomPatcher.js/releases/latest | \
-                       grep -oP '"tag_name":\s*"\K(.*)(?=")'); \
-    fi && \
-    echo "Cloning RomPatcher.js project with tag ${UPSTREAM_TAG}..." && \
-    git clone --depth 1 --branch "${UPSTREAM_TAG}" https://github.com/marcrobledo/RomPatcher.js.git "${SERVER_ROOT}" || \
-    (echo "Git clone failed with exit code $? (UPSTREAM_TAG=${UPSTREAM_TAG})" && exit 1)
-
-# Expose the configured server port
+# Expose the configured server port directly
 EXPOSE ${SERVER_PORT}
 
-# Run static-web-server with TLS (if certs are mounted/configured)
-CMD ["static-web-server"]
+# Run the static web server with dynamic port support
+CMD sh -c "/busybox-httpd -f -v -p ${SERVER_PORT}"
