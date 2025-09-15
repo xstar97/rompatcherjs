@@ -1,17 +1,22 @@
-# Use the lightweight static website base
-FROM lipanski/docker-static-website:2.6.0@sha256:66a530684a934a9b94f65a90f286cba291a7daf4dd7d55dcc17f217915056cd5
+# Use the static-web-server alpine image as a base
+FROM ghcr.io/static-web-server/static-web-server:2.38.1-alpine
 
 # Set environment variables with sensible defaults
-ENV SERVER_PORT=3000
+ENV SERVER_PORT=3000 \
+    SERVER_ROOT=/app/public \
+    SERVER_HEALTH=true
 
-# Working directory is already /home/static in this base image
-WORKDIR /home/static
+# Create working directory
+WORKDIR /app
 
-# Copy RomPatcher.js files cloned by the workflow
-COPY ./RomPatcher.js .
-
-# Expose the configured server port directly
+# Expose the configured server port
 EXPOSE ${SERVER_PORT}
 
-# Run the static web server with dynamic port support
-CMD sh -c "/busybox-httpd -f -v -p ${SERVER_PORT}"
+# Copy pre-fetched RomPatcher.js files into SERVER_ROOT
+COPY ./RomPatcher.js ${SERVER_ROOT}
+
+# Verify critical files exist
+RUN test -f "${SERVER_ROOT}/index.html" || (echo "ERROR: index.html not found in ${SERVER_ROOT}" && exit 1)
+
+# Run static-web-server
+CMD ["static-web-server"]
