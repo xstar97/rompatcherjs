@@ -51,7 +51,15 @@ jobs:
           fi
 
       # ----------------------------------------------------------
-      # 4. Log in to GHCR (only if new release)
+      # 3b. Clone RomPatcher.js at the release tag (only if new)
+      # ----------------------------------------------------------
+      - name: Clone RomPatcher.js
+        if: steps.check.outputs.new_release == 'true'
+        run: |
+          git clone --depth 1 --branch "${LATEST}" https://github.com/marcrobledo/RomPatcher.js.git RomPatcher.js
+
+      # ----------------------------------------------------------
+      # 4. Log in to GHCR
       # ----------------------------------------------------------
       - name: Log in to GHCR
         if: steps.check.outputs.new_release == 'true'
@@ -62,7 +70,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------------------------
-      # 5. Build and push Docker image (dynamic tags)
+      # 5. Build and push Docker image
       # ----------------------------------------------------------
       - name: Build and push Docker image
         if: steps.check.outputs.new_release == 'true'
@@ -74,7 +82,6 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.LATEST }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          build-args: UPSTREAM_TAG=${{ env.LATEST }}
 
       # ----------------------------------------------------------
       # 6. Create git tag for this release
