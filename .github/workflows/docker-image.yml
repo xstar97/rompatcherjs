@@ -2,11 +2,6 @@ name: Build and Push RomPatcher.js Docker Image
 
 on:
   workflow_dispatch:
-    inputs:
-      custom_tag:
-        description: "Optional upstream tag to build (defaults to latest)"
-        required: false
-        default: ""
   schedule:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
 
@@ -31,20 +26,15 @@ jobs:
           fetch-depth: 0   # needed for tags
 
       # ----------------------------------------------------------
-      # 2. Determine upstream release tag
+      # 2. Fetch the latest upstream release tag
       # ----------------------------------------------------------
-      - name: Determine upstream release
+      - name: Get latest upstream release
         id: set_version
         run: |
-          if [ -n "${{ github.event.inputs.custom_tag }}" ]; then
-            TAG="${{ github.event.inputs.custom_tag }}"
-            echo "Using custom upstream tag: $TAG"
-          else
-            TAG=$(curl -s $REPO_URL_API | jq -r '.tag_name')
-            echo "Fetched latest upstream tag: $TAG"
-          fi
-          echo "LATEST=$TAG" >> $GITHUB_ENV
-          echo "version=$TAG" >> $GITHUB_OUTPUT
+          LATEST=$(curl -s $REPO_URL_API | jq -r '.tag_name')
+          echo "LATEST=$LATEST" >> $GITHUB_ENV
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "Latest upstream tag: $LATEST"
 
       # ----------------------------------------------------------
       # 3. Determine if release is NEW compared to repo tags
@@ -58,6 +48,7 @@ jobs:
           else
             echo "New release ${LATEST} detected!"
             echo "new_release=true" >> $GITHUB_OUTPUT
+          fi
 
       # ----------------------------------------------------------
       # 4. Log in to GHCR (only if new release)
@@ -80,10 +71,10 @@ jobs:
           context: .
           push: true
           no-cache: true
-          build-args: UPSTREAM_TAG=${{ env.LATEST }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.LATEST }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: UPSTREAM_TAG=${{ env.LATEST }}
 
       # ----------------------------------------------------------
       # 6. Create git tag for this release
