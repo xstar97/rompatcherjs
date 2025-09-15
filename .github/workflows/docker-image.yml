@@ -2,6 +2,11 @@ name: Build and Push RomPatcher.js Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Force rebuild even if release tag already exists"
+        required: false
+        default: "false"
   schedule:
     - cron: '0 2 * * *' # Daily at 02:00 UTC
 
@@ -37,21 +42,27 @@ jobs:
           echo "Latest upstream tag: $LATEST"
 
       # ----------------------------------------------------------
-      # 3. Determine if release is NEW compared to repo tags
+      # 3. Determine if release is NEW or force rebuild requested
       # ----------------------------------------------------------
-      - name: Check if new release
+      - name: Check if new release or force rebuild
         id: check
         run: |
+          FORCE="${{ github.event.inputs.force_rebuild }}"
           if git rev-parse "refs/tags/${LATEST}" >/dev/null 2>&1; then
-            echo "Release ${LATEST} already handled."
-            echo "new_release=false" >> $GITHUB_OUTPUT
+            if [ "$FORCE" = "true" ]; then
+              echo "Tag ${LATEST} already exists, but force rebuild enabled."
+              echo "new_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Release ${LATEST} already handled."
+              echo "new_release=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "New release ${LATEST} detected!"
             echo "new_release=true" >> $GITHUB_OUTPUT
           fi
 
       # ----------------------------------------------------------
-      # 3b. Clone RomPatcher.js at the release tag (only if new)
+      # 3b. Clone RomPatcher.js at the release tag (only if new/forced)
       # ----------------------------------------------------------
       - name: Clone RomPatcher.js
         if: steps.check.outputs.new_release == 'true'
@@ -84,10 +95,10 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # ----------------------------------------------------------
-      # 6. Create git tag for this release
+      # 6. Create git tag for this release (skip if forced rebuild)
       # ----------------------------------------------------------
       - name: Create Git Tag
-        if: steps.check.outputs.new_release == 'true'
+        if: steps.check.outputs.new_release == 'true' && github.event.inputs.force_rebuild != 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
