@@ -6,7 +6,7 @@ This image also uses [static-web-server](https://static-web-server.net/configura
 ```yaml
 services:
   rompatcherjs:
-    image: ghcr.io/xstar97/rompatcherjs:v3.0
+    image: ghcr.io/xstar97/rompatcherjs:v3.2.1
     ports:
       - "${SERVER_PORT:-3000}:${SERVER_PORT:-3000}"
     environment:
