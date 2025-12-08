@@ -1,5 +1,5 @@
 # Use the static-web-server x.x.x-alpine as a base
-FROM ghcr.io/static-web-server/static-web-server:2.38.1-alpine
+FROM ghcr.io/static-web-server/static-web-server:2.40.1-alpine
 
 # Set environment variables with sensible defaults
 ENV SERVER_PORT=3000 \
